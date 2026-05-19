@@ -5,6 +5,7 @@ import memoriesRouter from "./memories";
 import notesRouter from "./notes";
 import settingsRouter from "./settings";
 import dashboardRouter from "./dashboard";
+import routinesRouter from "./routines";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(memoriesRouter);
 router.use(notesRouter);
 router.use(settingsRouter);
 router.use(dashboardRouter);
+router.use(routinesRouter);
 
 export default router;

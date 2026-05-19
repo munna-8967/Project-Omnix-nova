@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: JARVIS AI Assistant API
+  version: 0.2.0
+  description: OmniNova AI Assistant API
 servers:
   - url: /api
     description: Base API path
@@ -18,6 +18,8 @@ tags:
     description: Notes and reminders
   - name: settings
     description: User settings and AI personality
+  - name: routines
+    description: Assistant routines and automations
 paths:
   /healthz:
     get:
@@ -147,9 +149,7 @@ paths:
               $ref: "#/components/schemas/OpenaiMessageInput"
       responses:
         "200":
-          description: SSE stream of assistant text chunks
-          content:
-            text/event-stream: {}
+          description: Streaming text/event-stream response
 
   /openai/conversations/{id}/voice-messages:
     post:
@@ -170,15 +170,13 @@ paths:
               $ref: "#/components/schemas/OpenaiVoiceMessageInput"
       responses:
         "200":
-          description: SSE stream of transcript and audio chunks
-          content:
-            text/event-stream: {}
+          description: Streaming voice response
 
   /memories:
     get:
       operationId: listMemories
       tags: [memories]
-      summary: List all saved memories
+      summary: List all memories
       responses:
         "200":
           description: List of memories
@@ -191,7 +189,7 @@ paths:
     post:
       operationId: createMemory
       tags: [memories]
-      summary: Save a new memory
+      summary: Create a memory
       requestBody:
         required: true
         content:
@@ -334,6 +332,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardStats"
 
+  /routines:
+    get:
+      operationId: listRoutines
+      tags: [routines]
+      summary: List all routines
+      responses:
+        "200":
+          description: List of routines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Routine"
+    post:
+      operationId: createRoutine
+      tags: [routines]
+      summary: Create a routine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutineInput"
+      responses:
+        "201":
+          description: Created routine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Routine"
+
+  /routines/{id}:
+    delete:
+      operationId: deleteRoutine
+      tags: [routines]
+      summary: Delete a routine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /routines/{id}/run:
+    post:
+      operationId: runRoutine
+      tags: [routines]
+      summary: Run a routine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Routine result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutineRunResult"
+
 components:
   schemas:
     HealthStatus:
@@ -473,7 +537,7 @@ components:
           type: string
         type:
           type: string
-          enum: [note, reminder, automation]
+          enum: [note, reminder]
         completed:
           type: boolean
         reminderAt:
@@ -499,13 +563,12 @@ components:
           type: string
         type:
           type: string
-          enum: [note, reminder, automation]
+          enum: [note, reminder]
         reminderAt:
-          type: ["string", "null"]
+          type: string
           format: date-time
       required:
         - title
-        - content
         - type
 
     NoteUpdate:
@@ -530,7 +593,7 @@ components:
           type: string
         personality:
           type: string
-          enum: [jarvis, friday, karen, custom]
+          enum: [omni, jarvis, friday, friday_v2, custom]
         customPersonality:
           type: ["string", "null"]
         voiceEnabled:
@@ -540,7 +603,16 @@ components:
           enum: [alloy, echo, fable, onyx, nova, shimmer]
         theme:
           type: string
-          enum: [blue, red, green, gold]
+          enum: [violet, blue, gold, red, green]
+        wakeWord:
+          type: string
+        wakeWordEnabled:
+          type: boolean
+        greetingStyle:
+          type: string
+          enum: [friendly, professional, casual, energetic]
+        userName:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -551,6 +623,10 @@ components:
         - voiceEnabled
         - voiceGender
         - theme
+        - wakeWord
+        - wakeWordEnabled
+        - greetingStyle
+        - userName
         - createdAt
 
     UserSettingsUpdate:
@@ -560,7 +636,7 @@ components:
           type: string
         personality:
           type: string
-          enum: [jarvis, friday, karen, custom]
+          enum: [omni, jarvis, friday, friday_v2, custom]
         customPersonality:
           type: ["string", "null"]
         voiceEnabled:
@@ -570,7 +646,16 @@ components:
           enum: [alloy, echo, fable, onyx, nova, shimmer]
         theme:
           type: string
-          enum: [blue, red, green, gold]
+          enum: [violet, blue, gold, red, green]
+        wakeWord:
+          type: string
+        wakeWordEnabled:
+          type: boolean
+        greetingStyle:
+          type: string
+          enum: [friendly, professional, casual, energetic]
+        userName:
+          type: string
 
     DashboardStats:
       type: object
@@ -591,3 +676,66 @@ components:
         - totalMemories
         - totalNotes
         - activeReminders
+
+    Routine:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        trigger:
+          type: string
+        icon:
+          type: string
+        actions:
+          type: string
+          description: JSON array of actions
+        active:
+          type: boolean
+        lastRun:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - trigger
+        - icon
+        - actions
+        - active
+        - createdAt
+
+    RoutineInput:
+      type: object
+      properties:
+        name:
+          type: string
+        trigger:
+          type: string
+        icon:
+          type: string
+        actions:
+          type: string
+          description: JSON array of actions
+      required:
+        - name
+        - trigger
+        - icon
+        - actions
+
+    RoutineRunResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        actionsExecuted:
+          type: integer
+      required:
+        - success
+        - message
+        - actionsExecuted

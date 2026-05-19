@@ -11,12 +11,12 @@ import ChatDetailPage from "@/pages/chat-detail";
 import MemoriesPage from "@/pages/memories";
 import NotesPage from "@/pages/notes";
 import SettingsPage from "@/pages/settings";
+import RoutinesPage from "@/pages/routines";
 import AppLayout from "@/components/app-layout";
+import FloatingAssistant from "@/components/floating-assistant";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -24,12 +24,8 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 function HomeRedirect() {
   return (
     <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <LandingPage />
-      </Show>
+      <Show when="signed-in"><Redirect to="/dashboard" /></Show>
+      <Show when="signed-out"><LandingPage /></Show>
     </>
   );
 }
@@ -40,9 +36,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       <Show when="signed-in">
         <AppLayout>{children}</AppLayout>
       </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
+      <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
 }
@@ -76,6 +70,9 @@ function Router() {
       <Route path="/notes" component={() => (
         <ProtectedRoute><NotesPage /></ProtectedRoute>
       )} />
+      <Route path="/routines" component={() => (
+        <ProtectedRoute><RoutinesPage /></ProtectedRoute>
+      )} />
       <Route path="/settings" component={() => (
         <ProtectedRoute><SettingsPage /></ProtectedRoute>
       )} />
@@ -89,7 +86,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={basePath}>
-          <Router />
+          <>
+            <Router />
+            <FloatingAssistant />
+          </>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface OpenaiConversation {
-  id: number;
-  title: string;
-  createdAt: Date;
+export interface RoutineRunResult {
+  success: boolean;
+  message: string;
+  actionsExecuted: number;
 }

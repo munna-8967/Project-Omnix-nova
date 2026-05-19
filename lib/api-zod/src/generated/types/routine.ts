@@ -5,15 +5,16 @@
  * OmniNova AI Assistant API
  * OpenAPI spec version: 0.2.0
  */
-import type { NoteType } from './noteType';
 
-export interface Note {
+export interface Routine {
   id: number;
-  title: string;
-  content: string;
-  type: NoteType;
-  completed: boolean;
+  name: string;
+  trigger: string;
+  icon: string;
+  /** JSON array of actions */
+  actions: string;
+  active: boolean;
   /** @nullable */
-  reminderAt?: Date | null;
+  lastRun?: Date | null;
   createdAt: Date;
 }

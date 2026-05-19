@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface OpenaiConversation {
-  id: number;
-  title: string;
-  createdAt: Date;
+export interface RoutineInput {
+  name: string;
+  trigger: string;
+  icon: string;
+  /** JSON array of actions */
+  actions: string;
 }
