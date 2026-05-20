@@ -13,7 +13,6 @@ import NotesPage from "@/pages/notes";
 import SettingsPage from "@/pages/settings";
 import RoutinesPage from "@/pages/routines";
 import AppLayout from "@/components/app-layout";
-import FloatingAssistant from "@/components/floating-assistant";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -86,10 +85,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={basePath}>
-          <>
-            <Router />
-            <FloatingAssistant />
-          </>
+          <Router />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
