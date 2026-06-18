@@ -266,6 +266,12 @@
 .animate-omni-ring-rev { animation: omni-ring-rev  8s linear infinite; }
 .animate-float         { animation: float-orb 3s ease-in-out infinite; }
 
+/* wave-bar helper — used in chat recording UI */
+.wave-bar {
+  animation: wave-bar var(--dur, 0.5s) ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
 @layer utilities {
   input[type="search"]::-webkit-search-cancel-button { @apply hidden; }
 }

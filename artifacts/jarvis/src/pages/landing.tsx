@@ -13,9 +13,9 @@ const capabilities = [
 ];
 
 const features = [
-  { icon: Mic, title: "Voice-First AI", desc: "Talk naturally. OmniNova understands context, emotion, and intent in real time." },
+  { icon: Mic, title: "Voice-First AI", desc: "Talk naturally. Omni understands context, emotion, and intent in real time." },
   { icon: Zap, title: "System Control", desc: "Open apps, toggle flashlight, set reminders — all with a single phrase." },
-  { icon: Brain, title: "Persistent Memory", desc: "OmniNova remembers your preferences, routines, and life context forever." },
+  { icon: Brain, title: "Persistent Memory", desc: "Omni remembers your preferences and life context over time." },
   { icon: Shield, title: "Always Private", desc: "Your data is yours. End-to-end encrypted, never shared, never sold." },
 ];
 
@@ -44,7 +44,7 @@ export default function LandingPage() {
             style={{ background: "radial-gradient(circle, rgba(124,58,237,0.4) 0%, rgba(37,99,235,0.2) 100%)", border: "1px solid rgba(124,58,237,0.45)", boxShadow: "0 0 20px rgba(124,58,237,0.4)" }}>
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <span className="text-lg font-bold gradient-text tracking-wide">OmniNova AI</span>
+          <span className="text-lg font-bold gradient-text tracking-wide">OMNIX</span>
         </div>
         <div className="flex items-center gap-3">
           <SignInButton mode="modal">
@@ -80,7 +80,7 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight tracking-tight">
-          <span className="gradient-text">Meet OmniNova</span>
+          <span className="gradient-text">Meet OMNIX</span>
           <br />
           <span className="text-foreground/85 text-3xl md:text-5xl font-semibold">Your Personal AI Operating System</span>
         </h1>
@@ -146,7 +146,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="relative z-10 text-center pb-8">
-        <p className="text-xs text-muted-foreground">© 2025 OmniNova AI · Personal AI Operating System</p>
+        <p className="text-xs text-muted-foreground">© 2025 OMNIX · Personal AI</p>
       </footer>
     </div>
   );

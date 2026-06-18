@@ -131,7 +131,12 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         const arrayBuffer = await blob.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.byteLength)));
+        }
+        const base64 = btoa(binary);
 
         setIsSending(true);
         setStreamedMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true, isVoice: true }]);
@@ -254,7 +259,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
           </div>
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-foreground truncate max-w-sm">{title}</h1>
-            <p className="text-[10px] text-primary/60 tracking-wider">OmniNova · Online</p>
+            <p className="text-[10px] text-primary/60 tracking-wider">Omni · Online</p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -295,7 +300,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
               </div>
             </div>
             <p className="text-lg font-semibold gradient-text mb-1">Hey {firstName}!</p>
-            <p className="text-muted-foreground text-sm mb-1">OmniNova is ready to help.</p>
+            <p className="text-muted-foreground text-sm mb-1">Omni is ready to help.</p>
             <p className="text-muted-foreground/50 text-xs">Type a message or tap the mic to speak.</p>
           </div>
         ) : (
@@ -319,7 +324,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
                           style={{ background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)" }}>
                           <Sparkles className="w-2.5 h-2.5 text-primary" />
                         </div>
-                        <span className="text-[10px] text-primary/60 tracking-widest uppercase">OmniNova</span>
+                        <span className="text-[10px] text-primary/60 tracking-widest uppercase">Omni</span>
                         {(msg as StreamedMessage).isVoice && (
                           <span className="text-[10px] text-primary/40 flex items-center gap-1">
                             <Volume2 className="w-2.5 h-2.5" /> Voice
@@ -398,7 +403,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
           /* Voice-first UI */
           <div className="flex flex-col items-center gap-4 py-2">
             <p className="text-xs text-muted-foreground tracking-wider">
-              {isRecording ? "Listening... tap to stop" : isSending ? "OmniNova is thinking..." : "Tap the mic to speak"}
+              {isRecording ? "Listening... tap to stop" : isSending ? "Omni is thinking..." : "Tap the mic to speak"}
             </p>
             <div className="flex items-center gap-4">
               <button
@@ -431,7 +436,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`Ask OmniNova anything, ${firstName}...`}
+                placeholder={`Ask Omni anything, ${firstName}...`}
                 disabled={isSending || isRecording}
                 rows={1}
                 className="resize-none min-h-[44px] max-h-[200px] bg-background border-border/40 focus:border-primary/50 text-sm placeholder:text-muted-foreground/30 rounded-xl"
