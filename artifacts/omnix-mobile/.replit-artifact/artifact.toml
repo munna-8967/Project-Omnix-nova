@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/omnix-mobile/"
+title = "OMNIX Mobile"
+version = "1.0.0"
+id = "artifacts/omnix-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/omnix-mobile/" ]
+localPort = 24268
+
+[services.development]
+run = "pnpm --filter @workspace/omnix-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/omnix-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/omnix-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "24268"
+BASE_PATH = "/omnix-mobile/"
