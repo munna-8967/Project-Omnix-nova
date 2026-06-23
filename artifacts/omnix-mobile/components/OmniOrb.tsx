@@ -1,36 +1,104 @@
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Animated, {
   Easing,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
-  withTiming,
   withSpring,
-  cancelAnimation,
+  withTiming,
 } from "react-native-reanimated";
-import { useColors } from "@/hooks/useColors";
 
-type OrbState = "idle" | "listening" | "thinking" | "responding";
+export type OrbState = "idle" | "listening" | "thinking" | "responding" | "executing";
 
-interface OmniOrbProps {
-  state: OrbState;
-  onPress?: () => void;
-  size?: number;
+interface StateConfig {
+  colors: [string, string, string];
+  glow: string;
+  glowOuter: string;
+  speed: number;
+  label: string;
+  labelColor: string;
+  ringColor: string;
+  icon: keyof typeof Feather.glyphMap;
 }
 
-// Each ring animated independently — avoids hooks in loops
+const STATE_CONFIG: Record<OrbState, StateConfig> = {
+  idle: {
+    colors: ["#a78bfa", "#7c3aed", "#2563eb"],
+    glow: "rgba(124,58,237,0.55)",
+    glowOuter: "rgba(124,58,237,0.18)",
+    speed: 3200,
+    label: "Tap to speak",
+    labelColor: "rgba(167,139,250,0.7)",
+    ringColor: "rgba(124,58,237,",
+    icon: "zap",
+  },
+  listening: {
+    colors: ["#f0abfc", "#c026d3", "#7c3aed"],
+    glow: "rgba(192,38,211,0.65)",
+    glowOuter: "rgba(192,38,211,0.22)",
+    speed: 850,
+    label: "Listening…",
+    labelColor: "#f0abfc",
+    ringColor: "rgba(192,38,211,",
+    icon: "mic",
+  },
+  thinking: {
+    colors: ["#fcd34d", "#d97706", "#7c3aed"],
+    glow: "rgba(217,119,6,0.55)",
+    glowOuter: "rgba(217,119,6,0.18)",
+    speed: 1500,
+    label: "Thinking…",
+    labelColor: "#fcd34d",
+    ringColor: "rgba(217,119,6,",
+    icon: "cpu",
+  },
+  responding: {
+    colors: ["#6ee7b7", "#059669", "#2563eb"],
+    glow: "rgba(5,150,105,0.55)",
+    glowOuter: "rgba(5,150,105,0.18)",
+    speed: 2000,
+    label: "Responding…",
+    labelColor: "#6ee7b7",
+    ringColor: "rgba(5,150,105,",
+    icon: "message-square",
+  },
+  executing: {
+    colors: ["#fde68a", "#f59e0b", "#7c3aed"],
+    glow: "rgba(245,158,11,0.65)",
+    glowOuter: "rgba(245,158,11,0.22)",
+    speed: 450,
+    label: "Executing…",
+    labelColor: "#fde68a",
+    ringColor: "rgba(245,158,11,",
+    icon: "zap",
+  },
+};
+
+const WAVE_BARS = Array.from({ length: 16 }, (_, i) => {
+  const angle = (i / 16) * Math.PI * 2 - Math.PI / 2;
+  return {
+    x: Math.cos(angle),
+    y: Math.sin(angle),
+    angle: (i / 16) * 360,
+    h: 8 + (i % 3) * 7 + (i % 5) * 3,
+    dur: 320 + (i % 6) * 65,
+    delay: (i / 16) * 450,
+  };
+});
+
 function OrbRing({ size, borderColor, duration, reverse, opacity }: {
   size: number; borderColor: string; duration: number; reverse?: boolean; opacity: number;
 }) {
   const rotation = useSharedValue(0);
-
   useEffect(() => {
     rotation.value = withRepeat(
       withTiming(reverse ? -360 : 360, { duration, easing: Easing.linear }),
-      -1,
-      false
+      -1, false
     );
     return () => { cancelAnimation(rotation); };
   }, [duration, reverse]);
@@ -40,126 +108,112 @@ function OrbRing({ size, borderColor, duration, reverse, opacity }: {
   }));
 
   return (
-    <Animated.View style={[{
-      position: "absolute",
-      width: size, height: size,
-      borderRadius: size / 2,
-      borderWidth: 1,
-      borderColor,
-      opacity,
-    }, style]} />
+    <Animated.View
+      pointerEvents="none"
+      style={[{
+        position: "absolute",
+        width: size, height: size, borderRadius: size / 2,
+        borderWidth: 1, borderColor, opacity,
+      }, style]}
+    />
   );
 }
 
-export function OmniOrb({ state, onPress, size = 200 }: OmniOrbProps) {
-  const colors = useColors();
+function WaveBar({ cfg, size, bar, visible }: {
+  cfg: StateConfig; size: number; bar: typeof WAVE_BARS[0]; visible: boolean;
+}) {
+  const scaleY = useSharedValue(1);
+  const opacity = useSharedValue(visible ? 1 : 0);
 
+  useEffect(() => {
+    cancelAnimation(scaleY);
+    cancelAnimation(opacity);
+    if (!visible) {
+      opacity.value = withTiming(0, { duration: 300, easing: Easing.linear });
+      return;
+    }
+    opacity.value = withTiming(1, { duration: 300, easing: Easing.linear });
+    const timer = setTimeout(() => {
+      scaleY.value = withRepeat(
+        withSequence(
+          withTiming(2.2, { duration: bar.dur, easing: Easing.out(Easing.quad) }),
+          withTiming(0.5, { duration: bar.dur, easing: Easing.in(Easing.quad) }),
+        ),
+        -1, true
+      );
+    }, bar.delay);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  const radius = size * 0.38;
+  const x = bar.x * radius;
+  const y = bar.y * radius;
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { rotate: `${bar.angle}deg` },
+      { scaleY: scaleY.value },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{
+        position: "absolute",
+        left: size / 2 + x - 1.5,
+        top: size / 2 + y - bar.h / 2,
+        width: 3,
+        height: bar.h,
+        borderRadius: 2,
+        backgroundColor: cfg.ringColor + "0.7)",
+        transformOrigin: "center",
+      }, style]}
+    />
+  );
+}
+
+interface OmniOrbProps {
+  state: OrbState;
+  onPress?: () => void;
+  size?: number;
+}
+
+export function OmniOrb({ state, onPress, size = 240 }: OmniOrbProps) {
+  const cfg = STATE_CONFIG[state];
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0.5);
 
   useEffect(() => {
     cancelAnimation(scale);
     cancelAnimation(glowOpacity);
+    const dur = cfg.speed;
 
-    if (state === "idle") {
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.04, { duration: 3000, easing: Easing.out(Easing.quad) }),
-          withTiming(0.97, { duration: 3000, easing: Easing.in(Easing.quad) }),
-        ),
-        -1,
-        true
-      );
-      glowOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.65, { duration: 3000, easing: Easing.linear }),
-          withTiming(0.35, { duration: 3000, easing: Easing.linear }),
-        ),
-        -1,
-        true
-      );
-    } else if (state === "listening") {
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.07, { duration: 350, easing: Easing.out(Easing.quad) }),
-          withTiming(0.95, { duration: 350, easing: Easing.in(Easing.quad) }),
-        ),
-        -1,
-        true
-      );
-      glowOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.9, { duration: 350, easing: Easing.linear }),
-          withTiming(0.5, { duration: 350, easing: Easing.linear }),
-        ),
-        -1,
-        true
-      );
-    } else if (state === "thinking") {
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.04, { duration: 1000, easing: Easing.out(Easing.quad) }),
-          withTiming(0.97, { duration: 1000, easing: Easing.in(Easing.quad) }),
-        ),
-        -1,
-        true
-      );
-      glowOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.8, { duration: 800, easing: Easing.linear }),
-          withTiming(0.4, { duration: 800, easing: Easing.linear }),
-        ),
-        -1,
-        true
-      );
-    } else {
-      // responding
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.05, { duration: 500, easing: Easing.out(Easing.quad) }),
-          withTiming(0.98, { duration: 500, easing: Easing.in(Easing.quad) }),
-        ),
-        -1,
-        true
-      );
-      glowOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.85, { duration: 500, easing: Easing.linear }),
-          withTiming(0.45, { duration: 500, easing: Easing.linear }),
-        ),
-        -1,
-        true
-      );
-    }
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: dur * 0.5, easing: Easing.out(Easing.quad) }),
+        withTiming(0.97, { duration: dur * 0.5, easing: Easing.in(Easing.quad) }),
+      ),
+      -1, true
+    );
+    glowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.75, { duration: dur * 0.5, easing: Easing.linear }),
+        withTiming(0.35, { duration: dur * 0.5, easing: Easing.linear }),
+      ),
+      -1, true
+    );
   }, [state]);
 
   const orbStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
-
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value,
   }));
 
-  const orbColor =
-    state === "listening" ? "#c026d3"
-    : state === "thinking" ? "#d97706"
-    : state === "responding" ? "#059669"
-    : colors.primary;
-
-  const glowColor =
-    state === "listening" ? "rgba(192,38,211,0.5)"
-    : state === "thinking" ? "rgba(217,119,6,0.5)"
-    : state === "responding" ? "rgba(5,150,105,0.5)"
-    : "rgba(139,92,246,0.5)";
-
-  const ringColor =
-    state === "listening" ? "rgba(192,38,211,0.3)"
-    : state === "thinking" ? "rgba(217,119,6,0.3)"
-    : state === "responding" ? "rgba(5,150,105,0.3)"
-    : "rgba(139,92,246,0.3)";
-
-  const core = size * 0.48;
+  const core = size * 0.46;
+  const isActive = state === "listening" || state === "thinking";
 
   return (
     <Pressable
@@ -171,30 +225,46 @@ export function OmniOrb({ state, onPress, size = 200 }: OmniOrbProps) {
         pointerEvents="none"
         style={[{
           position: "absolute",
-          width: size * 1.3,
-          height: size * 1.3,
-          borderRadius: size * 0.65,
-          backgroundColor: glowColor,
+          width: size * 1.25, height: size * 1.25,
+          borderRadius: size * 0.625,
+          backgroundColor: cfg.glowOuter,
         }, glowStyle]}
       />
 
-      {/* Decorative rings */}
-      <OrbRing size={size * 1.05} borderColor={ringColor} duration={32000} opacity={0.25} />
-      <OrbRing size={size * 0.88} borderColor={ringColor} duration={18000} reverse opacity={0.35} />
-      <OrbRing size={size * 0.72} borderColor={ringColor} duration={10000} opacity={0.5} />
+      {/* Wave bars (listening / thinking) */}
+      {WAVE_BARS.map((bar, i) => (
+        <WaveBar key={i} cfg={cfg} size={size} bar={bar} visible={isActive} />
+      ))}
 
-      {/* Core sphere */}
+      {/* Rings */}
+      <OrbRing size={size * 1.0}  borderColor={cfg.ringColor + "0.12)"} duration={28000} opacity={0.6} />
+      <OrbRing size={size * 0.85} borderColor={cfg.ringColor + "0.15)"} duration={16000} reverse opacity={0.7} />
+      <OrbRing size={size * 0.72} borderColor={cfg.ringColor + "0.28)"} duration={9000} opacity={0.9} />
+
+      {/* Core gradient sphere */}
       <Animated.View style={[{
-        width: core,
-        height: core,
+        width: core, height: core,
         borderRadius: core / 2,
-        backgroundColor: orbColor,
-        shadowColor: glowColor,
+        shadowColor: cfg.glow,
         shadowOpacity: 1,
-        shadowRadius: 40,
+        shadowRadius: 32,
         shadowOffset: { width: 0, height: 0 },
         elevation: 20,
-      }, orbStyle]} />
+      }, orbStyle]}>
+        <LinearGradient
+          colors={cfg.colors}
+          start={{ x: 0.34, y: 0.28 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            width: core, height: core,
+            borderRadius: core / 2,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Feather name={cfg.icon} size={core * 0.38} color="rgba(255,255,255,0.9)" />
+        </LinearGradient>
+      </Animated.View>
     </Pressable>
   );
 }

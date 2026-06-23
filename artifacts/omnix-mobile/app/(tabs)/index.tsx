@@ -1,19 +1,19 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  FlatList,
+  Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Keyboard,
 } from "react-native";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -22,262 +22,401 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useCreateOpenaiConversation,
-  useDeleteOpenaiConversation,
-  useListOpenaiConversations,
+  useGetDashboardStats,
+  useListMemories,
 } from "@workspace/api-client-react";
-import { ConversationCard } from "@/components/ConversationCard";
-import { OmniOrb } from "@/components/OmniOrb";
+import { OmniOrb, OrbState } from "@/components/OmniOrb";
 import { useColors } from "@/hooks/useColors";
 
-type OrbState = "idle" | "listening" | "thinking" | "responding";
+function buildThoughts(name: string, hour: number, totalMemories: number, totalConversations: number): string[] {
+  const greeting =
+    hour < 10  ? `Good morning, ${name}. How would you like to begin?`
+    : hour < 13 ? `Morning energy is high, ${name}. What's on your mind?`
+    : hour < 17 ? `Afternoon check-in, ${name}. ${totalConversations > 0 ? `${totalConversations} conversation${totalConversations > 1 ? "s" : ""} so far today.` : "What are you thinking about?"}`
+    : hour < 21 ? `Evening, ${name}. The day is winding down.`
+    : `Late night, ${name}. I'm here.`;
+
+  const lines = [greeting];
+  if (totalMemories > 0)
+    lines.push(`I hold ${totalMemories} memor${totalMemories === 1 ? "y" : "ies"} about you. Getting to know you better every day.`);
+  else
+    lines.push("Start a conversation and I'll begin learning what matters to you.");
+  return lines;
+}
+
+// SpeechRecognition type for web
+type SpeechRecLike = {
+  continuous: boolean; interimResults: boolean; lang: string;
+  start(): void; stop(): void;
+  onresult: ((e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+
   const [orbState, setOrbState] = useState<OrbState>("idle");
+  const [transcript, setTranscript] = useState("");
   const [showInput, setShowInput] = useState(false);
-  const [inputText, setInputText] = useState("");
+  const [textInput, setTextInput] = useState("");
   const inputRef = useRef<TextInput>(null);
+  const recRef = useRef<{ stop: () => void } | null>(null);
 
   const inputOpacity = useSharedValue(0);
   const inputTranslate = useSharedValue(20);
 
-  const { data: conversations = [], refetch } = useListOpenaiConversations();
+  const hour = new Date().getHours();
+  const { data: stats } = useGetDashboardStats();
+  const { data: memories = [] } = useListMemories();
   const { mutateAsync: createConversation } = useCreateOpenaiConversation();
-  const { mutateAsync: deleteConversation } = useDeleteOpenaiConversation();
 
-  const toggleInput = () => {
-    Haptics.selectionAsync();
-    if (showInput) {
-      setShowInput(false);
-      inputOpacity.value = withTiming(0, { duration: 200 });
-      inputTranslate.value = withTiming(20, { duration: 200 });
-      Keyboard.dismiss();
-    } else {
-      setShowInput(true);
-      inputOpacity.value = withTiming(1, { duration: 250 });
-      inputTranslate.value = withSpring(0, { damping: 20 });
-      setTimeout(() => inputRef.current?.focus(), 100);
+  const name = "there";
+  const thoughts = buildThoughts(name, hour, stats?.totalMemories ?? 0, stats?.totalConversations ?? 0);
+
+  const processCommand = useCallback(async (text: string) => {
+    if (!text.trim()) { setOrbState("idle"); return; }
+    setOrbState("responding");
+    try {
+      const conv = await createConversation({ data: { title: text.slice(0, 64) || "Voice conversation" } });
+      setOrbState("idle");
+      setTranscript("");
+      router.push(`/chat/${conv.id}`);
+    } catch {
+      setOrbState("idle");
+      setTranscript("");
     }
-  };
+  }, [createConversation]);
 
-  const inputStyle = useAnimatedStyle(() => ({
+  const handleOrbTap = useCallback(() => {
+    if (orbState === "listening") {
+      recRef.current?.stop();
+      recRef.current = null;
+      if (transcript) {
+        setOrbState("thinking");
+        setTimeout(() => processCommand(transcript), 400);
+      } else {
+        setOrbState("idle");
+      }
+      return;
+    }
+    if (orbState !== "idle") return;
+
+    // Web: try SpeechRecognition
+    if (Platform.OS === "web") {
+      const Win = window as unknown as {
+        SpeechRecognition?: new () => SpeechRecLike;
+        webkitSpeechRecognition?: new () => SpeechRecLike;
+      };
+      const SpeechRec = Win.SpeechRecognition || Win.webkitSpeechRecognition;
+      if (SpeechRec) {
+        setOrbState("listening");
+        setTranscript("");
+        const rec = new SpeechRec();
+        rec.continuous = false; rec.interimResults = true; rec.lang = "en-US";
+        recRef.current = rec;
+        rec.onresult = (e) => {
+          let interim = "";
+          for (let i = e.resultIndex; i < e.results.length; i++) interim += e.results[i][0].transcript;
+          setTranscript(interim);
+          if (e.results[e.results.length - 1].isFinal) {
+            recRef.current = null;
+            setOrbState("thinking");
+            setTimeout(() => processCommand(interim), 400);
+          }
+        };
+        rec.onerror = () => { setOrbState("idle"); setTranscript(""); recRef.current = null; };
+        rec.onend = () => {};
+        rec.start();
+        return;
+      }
+    }
+
+    // Fallback: show text input
+    Haptics.selectionAsync();
+    setShowInput(true);
+    inputOpacity.value = withTiming(1, { duration: 250, easing: Easing.linear });
+    inputTranslate.value = withSpring(0, { damping: 20 });
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [orbState, transcript, processCommand]);
+
+  const handleSubmitText = useCallback(() => {
+    if (!textInput.trim()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setOrbState("thinking");
+    setShowInput(false);
+    inputOpacity.value = withTiming(0, { duration: 180, easing: Easing.linear });
+    inputTranslate.value = withTiming(20, { duration: 180, easing: Easing.linear });
+    Keyboard.dismiss();
+    const q = textInput.trim();
+    setTextInput("");
+    setTimeout(() => processCommand(q), 300);
+  }, [textInput, processCommand]);
+
+  const inputAnimStyle = useAnimatedStyle(() => ({
     opacity: inputOpacity.value,
     transform: [{ translateY: inputTranslate.value }],
   }));
 
-  const startConversation = useCallback(async (title: string) => {
-    if (!title.trim()) return;
-    setOrbState("thinking");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const conv = await createConversation({ data: { title: title.trim().slice(0, 80) } });
-      setOrbState("idle");
-      setInputText("");
-      setShowInput(false);
-      inputOpacity.value = withTiming(0);
-      inputTranslate.value = withTiming(20);
-      router.push(`/chat/${conv.id}`);
-    } catch {
-      setOrbState("idle");
-      Alert.alert("Error", "Could not start conversation. Please try again.");
-    }
-  }, [createConversation]);
-
-  const handleOrbPress = useCallback(() => {
-    if (orbState !== "idle") return;
-    toggleInput();
-  }, [orbState, showInput]);
-
-  const handleDelete = useCallback(async (id: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await deleteConversation({ id });
-      refetch();
-    } catch {
-      Alert.alert("Error", "Could not delete conversation.");
-    }
-  }, [deleteConversation, refetch]);
-
   const paddingTop = Platform.OS === "web" ? 67 : insets.top;
-  const paddingBottom = Platform.OS === "web" ? 34 : 0;
+  const paddingBottom = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const STATE_LABELS: Record<OrbState, string> = {
+    idle:      "Tap to speak",
+    listening: "Listening…",
+    thinking:  "Thinking…",
+    responding: "Responding…",
+    executing: "Executing…",
+  };
+  const STATE_LABEL_COLORS: Record<OrbState, string> = {
+    idle:       "rgba(167,139,250,0.7)",
+    listening:  "#f0abfc",
+    thinking:   "#fcd34d",
+    responding: "#6ee7b7",
+    executing:  "#fde68a",
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Fixed header area */}
-      <View style={[styles.topSection, { paddingTop: paddingTop + 16 }]}>
-        {/* Status pill */}
-        <View style={[styles.statusPill, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={{ paddingBottom: paddingBottom + 100 }}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* Status bar */}
+      <View style={[styles.statusRow, { paddingTop: paddingTop + 16 }]}>
+        <View style={styles.statusPill}>
           <View style={[styles.statusDot, { backgroundColor: "#10b981" }]} />
-          <Text style={[styles.statusText, { color: colors.mutedForeground }]}>Omni · Online</Text>
+          <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+            Omni · Online
+          </Text>
         </View>
-
-        {/* Orb hero */}
-        <View style={styles.orbContainer}>
-          <OmniOrb state={orbState} onPress={handleOrbPress} size={200} />
-        </View>
-
-        {/* Greeting + hint */}
-        <Text style={[styles.greeting, { color: colors.foreground }]}>{greeting}</Text>
-        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          {orbState === "idle" ? "Tap orb to start" : orbState === "thinking" ? "Thinking…" : ""}
-        </Text>
-
-        {/* Text input */}
-        <Animated.View style={[styles.inputWrap, inputStyle, { display: showInput ? "flex" : "none" }]}>
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, {
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              borderColor: colors.border,
-            }]}
-            placeholder="Ask Omni anything…"
-            placeholderTextColor={colors.mutedForeground}
-            value={inputText}
-            onChangeText={setInputText}
-            returnKeyType="send"
-            onSubmitEditing={() => startConversation(inputText)}
-            blurOnSubmit={false}
-          />
-          <Pressable
-            onPress={() => startConversation(inputText)}
-            disabled={!inputText.trim()}
-            style={[styles.sendBtn, { backgroundColor: inputText.trim() ? colors.primary : colors.muted }]}
-          >
-            <Feather name="arrow-right" size={18} color={inputText.trim() ? colors.primaryForeground : colors.mutedForeground} />
-          </Pressable>
-        </Animated.View>
       </View>
 
-      {/* Conversations list */}
-      <FlatList
-        data={conversations}
-        keyExtractor={(c) => String(c.id)}
-        renderItem={({ item }) => (
-          <ConversationCard
-            id={item.id}
-            title={item.title}
-            createdAt={item.createdAt}
-            onPress={() => router.push(`/chat/${item.id}`)}
-            onDelete={() => handleDelete(item.id)}
-          />
+      {/* Orb hero */}
+      <View style={styles.orbSection}>
+        <OmniOrb state={orbState} onPress={handleOrbTap} size={240} />
+
+        <View style={styles.greeting}>
+          <Text style={[styles.greetingName, { color: colors.foreground }]}>
+            Hey, {name}
+          </Text>
+          <View style={styles.labelRow}>
+            {transcript && orbState !== "idle" ? (
+              <Text style={[styles.transcript, { color: STATE_LABEL_COLORS[orbState] }]}>
+                "{transcript}"
+              </Text>
+            ) : (
+              <Text style={[styles.stateLabel, { color: STATE_LABEL_COLORS[orbState] }]}>
+                {STATE_LABELS[orbState]}
+              </Text>
+            )}
+          </View>
+          {orbState === "idle" && (
+            <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+              tap orb to speak · or{" "}
+              <Text
+                style={{ color: colors.primary, textDecorationLine: "underline" }}
+                onPress={() => {
+                  setShowInput(v => !v);
+                  if (!showInput) {
+                    inputOpacity.value = withTiming(1, { duration: 250, easing: Easing.linear });
+                    inputTranslate.value = withSpring(0, { damping: 20 });
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                  } else {
+                    inputOpacity.value = withTiming(0, { duration: 180, easing: Easing.linear });
+                    inputTranslate.value = withTiming(20, { duration: 180, easing: Easing.linear });
+                  }
+                }}
+              >
+                type
+              </Text>
+            </Text>
+          )}
+        </View>
+
+        {showInput && orbState === "idle" && (
+          <Animated.View style={[styles.inputWrap, inputAnimStyle]}>
+            <TextInput
+              ref={inputRef}
+              style={[styles.input, {
+                backgroundColor: "rgba(255,255,255,0.04)",
+                color: colors.foreground,
+                borderColor: "rgba(124,58,237,0.25)",
+              }]}
+              placeholder={`Ask Omni…`}
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              value={textInput}
+              onChangeText={setTextInput}
+              returnKeyType="send"
+              onSubmitEditing={handleSubmitText}
+            />
+            <Pressable
+              onPress={handleSubmitText}
+              disabled={!textInput.trim()}
+              style={[styles.sendBtn, {
+                backgroundColor: textInput.trim() ? colors.primary : colors.muted,
+              }]}
+            >
+              <Feather name="arrow-right" size={18} color={textInput.trim() ? "#fff" : colors.mutedForeground} />
+            </Pressable>
+          </Animated.View>
         )}
-        contentContainerStyle={{
-          paddingBottom: paddingBottom + 100,
-          paddingTop: 8,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={conversations.length > 0 ? (
-          <View style={styles.sectionHeader}>
-            <Feather name="clock" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Recent</Text>
+      </View>
+
+      <View style={[styles.divider, { backgroundColor: "rgba(255,255,255,0.04)" }]} />
+
+      {/* Omni Thoughts */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Feather name="zap" size={12} color="rgba(124,58,237,0.6)" />
+          <Text style={[styles.sectionLabel, { color: "rgba(255,255,255,0.4)" }]}>
+            OMNI THOUGHTS
+          </Text>
+        </View>
+        <View style={styles.sectionContent}>
+          {thoughts.map((t, i) => (
+            <View key={i} style={[styles.thoughtCard, { borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(255,255,255,0.02)" }]}>
+              <Text style={[styles.thoughtText, { color: "rgba(255,255,255,0.65)" }]}>{t}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Memory Glimpses */}
+      {memories.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Feather name="cpu" size={12} color="rgba(124,58,237,0.6)" />
+              <Text style={[styles.sectionLabel, { color: "rgba(255,255,255,0.4)" }]}>
+                MEMORY
+              </Text>
+            </View>
+            <Pressable onPress={() => router.push("/(tabs)/memory")} style={styles.seeAll}>
+              <Text style={[styles.seeAllText, { color: "rgba(124,58,237,0.5)" }]}>All</Text>
+              <Feather name="chevron-right" size={12} color="rgba(124,58,237,0.5)" />
+            </Pressable>
           </View>
-        ) : null}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="message-circle" size={28} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No conversations yet</Text>
-            <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>Tap the orb above to start</Text>
+          <View style={styles.memoryPills}>
+            {memories.slice(0, 4).map((m) => (
+              <View
+                key={m.id}
+                style={[styles.memoryPill, { borderColor: "rgba(124,58,237,0.15)", backgroundColor: "rgba(124,58,237,0.05)" }]}
+              >
+                <Text style={[styles.memoryPillText, { color: "rgba(167,139,250,0.7)" }]} numberOfLines={1}>
+                  {m.content.slice(0, 48)}{m.content.length > 48 ? "…" : ""}
+                </Text>
+              </View>
+            ))}
           </View>
-        }
-      />
-    </View>
+        </View>
+      )}
+
+      {/* Quick Access */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: "rgba(255,255,255,0.4)", marginBottom: 12 }]}>
+          QUICK ACCESS
+        </Text>
+        <View style={styles.quickGrid}>
+          {([
+            { icon: "message-square" as const, label: "Chat",     onPress: () => router.push("/(tabs)/chat")     },
+            { icon: "cpu" as const,            label: "Memory",   onPress: () => router.push("/(tabs)/memory")   },
+            { icon: "settings" as const,       label: "Settings", onPress: () => router.push("/(tabs)/settings") },
+          ]).map(({ icon, label, onPress }) => (
+            <Pressable
+              key={label}
+              onPress={onPress}
+              style={({ pressed }) => [
+                styles.quickItem,
+                {
+                  borderColor: pressed ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.06)",
+                  backgroundColor: pressed ? "rgba(124,58,237,0.05)" : "rgba(255,255,255,0.02)",
+                }
+              ]}
+            >
+              <Feather name={icon} size={20} color="rgba(255,255,255,0.5)" />
+              <Text style={[styles.quickLabel, { color: "rgba(255,255,255,0.4)" }]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topSection: {
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    gap: 10,
-  },
-  statusPill: {
+  statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 8,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, letterSpacing: 2, textTransform: "uppercase", fontFamily: "Inter_400Regular" },
+  orbSection: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 32,
+    gap: 16,
   },
-  statusText: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    letterSpacing: 0.5,
-  },
-  orbContainer: {
-    marginVertical: 8,
-  },
-  greeting: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  hint: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
+  greeting: { alignItems: "center", gap: 8 },
+  greetingName: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5, textAlign: "center" },
+  labelRow: { height: 24, alignItems: "center", justifyContent: "center" },
+  stateLabel: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  transcript: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", fontStyle: "italic" },
+  hintText: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", letterSpacing: 0.5, textTransform: "uppercase" },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     width: "100%",
-    marginTop: 4,
+    maxWidth: 340,
   },
   input: {
     flex: 1,
     height: 48,
     borderRadius: 24,
     borderWidth: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
+    textAlign: "center",
   },
   sendBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 48, height: 48, borderRadius: 24,
+    alignItems: "center", justifyContent: "center",
   },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
+  divider: { height: 1, marginHorizontal: 24 },
+  section: { paddingHorizontal: 24, paddingTop: 28 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  sectionLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 2.5 },
+  sectionContent: { gap: 8 },
+  thoughtCard: {
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: 16, borderWidth: 1,
   },
-  sectionTitle: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1,
-    textTransform: "uppercase",
+  thoughtText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
+  seeAllText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  memoryPills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  memoryPill: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1,
+    maxWidth: 200,
   },
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingTop: 32,
+  memoryPillText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  quickGrid: { flexDirection: "row", gap: 8 },
+  quickItem: {
+    flex: 1, alignItems: "center", gap: 8,
+    paddingVertical: 16, borderRadius: 16, borderWidth: 1,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  emptyHint: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
+  quickLabel: { fontSize: 10, fontFamily: "Inter_400Regular", letterSpacing: 1, textTransform: "uppercase" },
 });

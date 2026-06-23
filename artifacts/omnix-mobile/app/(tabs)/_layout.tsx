@@ -15,9 +15,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="voice">
-        <Icon sf={{ default: "mic", selected: "mic.fill" }} />
-        <Label>Voice</Label>
+      <NativeTabs.Trigger name="chat">
+        <Icon sf={{ default: "message", selected: "message.fill" }} />
+        <Label>Chat</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="memory">
         <Icon sf={{ default: "brain", selected: "brain.fill" }} />
@@ -77,14 +77,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="voice"
+        name="chat"
         options={{
-          title: "Voice",
+          title: "Chat",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="mic" tintColor={color} size={22} />
+              <SymbolView name="message" tintColor={color} size={22} />
             ) : (
-              <Feather name="mic" size={22} color={color} />
+              <Feather name="message-square" size={22} color={color} />
             ),
         }}
       />
@@ -111,6 +111,10 @@ function ClassicTabLayout() {
               <Feather name="settings" size={22} color={color} />
             ),
         }}
+      />
+      <Tabs.Screen
+        name="voice"
+        options={{ href: null }}
       />
     </Tabs>
   );
