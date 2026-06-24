@@ -31,6 +31,7 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateEmail, setDuplicateEmail] = useState(false);
 
   if (isSignedIn) {
     return <Redirect href="/(tabs)" />;
@@ -49,8 +50,14 @@ export default function SignUpScreen() {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setStep("verify");
     } catch (err: unknown) {
-      const clerkErr = err as { errors?: { message: string }[] };
-      setError(clerkErr?.errors?.[0]?.message ?? "Sign-up failed. Please try again.");
+      const clerkErr = err as { errors?: { code?: string; message: string }[] };
+      const firstErr = clerkErr?.errors?.[0];
+      if (firstErr?.code === "form_identifier_exists") {
+        setDuplicateEmail(true);
+        setError(null);
+      } else {
+        setError(firstErr?.message ?? "Sign-up failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -108,7 +115,25 @@ export default function SignUpScreen() {
                 <Text style={styles.heading}>Create account</Text>
                 <Text style={styles.subheading}>Join OMNIX to get started</Text>
 
-                {error && (
+                {duplicateEmail && (
+                  <View style={styles.duplicateBox}>
+                    <View style={styles.duplicateTop}>
+                      <Feather name="info" size={14} color="#a78bfa" />
+                      <Text style={styles.duplicateText}>
+                        An account with this email already exists. Please sign in instead.
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={({ pressed }) => [styles.signInInlineButton, pressed && styles.pressed]}
+                      onPress={() => router.replace("/sign-in")}
+                    >
+                      <Text style={styles.signInInlineText}>Go to Sign In</Text>
+                      <Feather name="arrow-right" size={14} color="#a78bfa" />
+                    </Pressable>
+                  </View>
+                )}
+
+                {error && !duplicateEmail && (
                   <View style={styles.errorBox}>
                     <Feather name="alert-circle" size={14} color="#f87171" />
                     <Text style={styles.errorText}>{error}</Text>
@@ -136,7 +161,7 @@ export default function SignUpScreen() {
                     placeholder="you@example.com"
                     placeholderTextColor="#6b5e8c"
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(v) => { setEmail(v); setDuplicateEmail(false); setError(null); }}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoComplete="email"
@@ -354,6 +379,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     flex: 1,
+  },
+  duplicateBox: {
+    backgroundColor: "rgba(124,58,237,0.08)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.3)",
+    padding: 12,
+    gap: 10,
+  },
+  duplicateTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  duplicateText: {
+    color: "#c4b5fd",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+    lineHeight: 19,
+  },
+  signInInlineButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(124,58,237,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.35)",
+  },
+  signInInlineText: {
+    color: "#a78bfa",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
   },
   field: {
     gap: 6,
