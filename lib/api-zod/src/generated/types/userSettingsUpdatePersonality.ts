@@ -11,8 +11,5 @@ export type UserSettingsUpdatePersonality = typeof UserSettingsUpdatePersonality
 
 export const UserSettingsUpdatePersonality = {
   omni: 'omni',
-  jarvis: 'jarvis',
-  friday: 'friday',
-  friday_v2: 'friday_v2',
   custom: 'custom',
 } as const;

@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useCreateOpenaiConversation,
   useGetDashboardStats,
+  useGetSettings,
   useListMemories,
 } from "@workspace/api-client-react";
 import { OmniOrb, OrbState } from "@/components/OmniOrb";
@@ -70,9 +71,10 @@ export default function HomeScreen() {
   const hour = new Date().getHours();
   const { data: stats } = useGetDashboardStats();
   const { data: memories = [] } = useListMemories();
+  const { data: userSettings } = useGetSettings();
   const { mutateAsync: createConversation } = useCreateOpenaiConversation();
 
-  const name = "there";
+  const name = userSettings?.userName?.trim() || "there";
   const thoughts = buildThoughts(name, hour, stats?.totalMemories ?? 0, stats?.totalConversations ?? 0);
 
   const processCommand = useCallback(async (text: string) => {

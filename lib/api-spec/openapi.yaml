@@ -593,7 +593,7 @@ components:
           type: string
         personality:
           type: string
-          enum: [omni, jarvis, friday, friday_v2, custom]
+          enum: [omni, custom]
         customPersonality:
           type: ["string", "null"]
         voiceEnabled:
@@ -636,7 +636,7 @@ components:
           type: string
         personality:
           type: string
-          enum: [omni, jarvis, friday, friday_v2, custom]
+          enum: [omni, custom]
         customPersonality:
           type: ["string", "null"]
         voiceEnabled:

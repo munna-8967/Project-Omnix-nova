@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { requireAuth, getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { conversations, messages } from "@workspace/db";
+import { conversations, messages, userSettingsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import {
   CreateOpenaiConversationBody,
@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { voiceChatStream, ensureCompatibleFormat } from "@workspace/integrations-openai-ai-server/audio";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
 
@@ -104,25 +105,35 @@ router.post("/conversations/:id/messages", requireAuth(), async (req, res) => {
   const { id } = SendOpenaiMessageParams.parse({ id: Number(req.params.id) });
   const body = SendOpenaiMessageBody.parse(req.body);
 
-  const conv = await db.query.conversations.findFirst({
-    where: and(eq(conversations.id, id), eq(conversations.userId, userId)),
-  });
-  if (!conv) {
-    res.status(404).json({ error: "Conversation not found" });
+  let conv: typeof conversations.$inferSelect | undefined;
+  let history: typeof messages.$inferSelect[] = [];
+  let userSettings: typeof userSettingsTable.$inferSelect | undefined;
+
+  try {
+    conv = await db.query.conversations.findFirst({
+      where: and(eq(conversations.id, id), eq(conversations.userId, userId)),
+    });
+    if (!conv) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+
+    history = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, id))
+      .orderBy(messages.createdAt);
+
+    await db.insert(messages).values({ conversationId: id, role: "user", content: body.content });
+
+    userSettings = await db.query.userSettingsTable.findFirst({
+      where: (t, { eq }) => eq(t.userId, userId),
+    });
+  } catch (err) {
+    logger.error({ err, conversationId: id }, "Database error before SSE stream");
+    res.status(500).json({ error: "Internal server error" });
     return;
   }
-
-  const history = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, id))
-    .orderBy(messages.createdAt);
-
-  await db.insert(messages).values({ conversationId: id, role: "user", content: body.content });
-
-  const userSettings = await db.query.userSettingsTable.findFirst({
-    where: (t, { eq }) => eq(t.userId, userId),
-  });
 
   const personality = userSettings?.personality ?? "omni";
   const customPersonality = userSettings?.customPersonality ?? null;
@@ -169,16 +180,28 @@ router.post("/conversations/:id/voice-messages", requireAuth(), async (req, res)
   const { id } = SendOpenaiVoiceMessageParams.parse({ id: Number(req.params.id) });
   const body = SendOpenaiVoiceMessageBody.parse(req.body);
 
-  const conv = await db.query.conversations.findFirst({
-    where: and(eq(conversations.id, id), eq(conversations.userId, userId)),
-  });
-  if (!conv) {
-    res.status(404).json({ error: "Conversation not found" });
+  let conv: typeof conversations.$inferSelect | undefined;
+  let audioBuffer: Buffer = Buffer.alloc(0);
+  let compatibleBuffer: Buffer = Buffer.alloc(0);
+  let format: "wav" | "mp3" | undefined = undefined;
+
+  try {
+    conv = await db.query.conversations.findFirst({
+      where: and(eq(conversations.id, id), eq(conversations.userId, userId)),
+    });
+    if (!conv) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+    audioBuffer = Buffer.from(body.audio, "base64");
+    const result = await ensureCompatibleFormat(audioBuffer);
+    compatibleBuffer = result.buffer;
+    format = result.format as "wav" | "mp3";
+  } catch (err) {
+    logger.error({ err, conversationId: id }, "Database or audio error before voice SSE stream");
+    res.status(500).json({ error: "Internal server error" });
     return;
   }
-
-  const audioBuffer = Buffer.from(body.audio, "base64");
-  const { buffer: compatibleBuffer, format } = await ensureCompatibleFormat(audioBuffer);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");

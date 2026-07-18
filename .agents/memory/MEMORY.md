@@ -1,0 +1,3 @@
+- [OpenAPI enum and generated types](openapi-enum-generated-types.md) — removing values from an OpenAPI enum breaks any TS code that compares against the old values; cast through `string` for legacy runtime compatibility.
+- [Orval UseQueryOptions queryKey](orval-usequery-options.md) — Orval-generated hooks type `query?` as `UseQueryOptions` which requires `queryKey` in RQ v5; fix with `as any` on the options object.
+- [Production DB schema](production-db-schema.md) — production schema is applied by Replit Publish flow, NOT by agent; agent must tell user to re-publish; never run drizzle-kit push against prod.

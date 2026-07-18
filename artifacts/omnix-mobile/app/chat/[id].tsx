@@ -42,7 +42,8 @@ export default function ChatScreen() {
   const abortRef = useRef<AbortController | null>(null);
 
   const { data: conversation, isLoading } = useGetOpenaiConversation(conversationId, {
-    query: { enabled: !isNaN(conversationId) },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query: { enabled: !isNaN(conversationId) } as any,
   });
 
   useEffect(() => {

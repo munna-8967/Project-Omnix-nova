@@ -50,4 +50,24 @@ app.use(
 
 app.use("/api", router);
 
+app.use(
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    const isZodError =
+      typeof err === "object" && err !== null && "issues" in err;
+    if (isZodError) {
+      res
+        .status(400)
+        .json({ error: "Invalid request", details: (err as { issues: unknown[] }).issues });
+      return;
+    }
+    logger.error({ err }, "Unhandled error in request handler");
+    res.status(500).json({ error: "Internal server error" });
+  },
+);
+
 export default app;

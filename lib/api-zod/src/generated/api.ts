@@ -200,7 +200,7 @@ export const DeleteNoteParams = zod.object({
 export const GetSettingsResponse = zod.object({
   "id": zod.number(),
   "assistantName": zod.string(),
-  "personality": zod.enum(['omni', 'jarvis', 'friday', 'friday_v2', 'custom']),
+  "personality": zod.enum(['omni', 'custom']),
   "customPersonality": zod.string().nullish(),
   "voiceEnabled": zod.boolean(),
   "voiceGender": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
@@ -218,7 +218,7 @@ export const GetSettingsResponse = zod.object({
  */
 export const UpdateSettingsBody = zod.object({
   "assistantName": zod.string().optional(),
-  "personality": zod.enum(['omni', 'jarvis', 'friday', 'friday_v2', 'custom']).optional(),
+  "personality": zod.enum(['omni', 'custom']).optional(),
   "customPersonality": zod.string().nullish(),
   "voiceEnabled": zod.boolean().optional(),
   "voiceGender": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional(),
@@ -232,7 +232,7 @@ export const UpdateSettingsBody = zod.object({
 export const UpdateSettingsResponse = zod.object({
   "id": zod.number(),
   "assistantName": zod.string(),
-  "personality": zod.enum(['omni', 'jarvis', 'friday', 'friday_v2', 'custom']),
+  "personality": zod.enum(['omni', 'custom']),
   "customPersonality": zod.string().nullish(),
   "voiceEnabled": zod.boolean(),
   "voiceGender": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),

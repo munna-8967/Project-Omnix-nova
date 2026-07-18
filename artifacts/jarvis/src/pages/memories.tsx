@@ -95,7 +95,7 @@ export default function MemoriesPage() {
                   <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="What should JARVIS remember?"
+                    placeholder="What should Omni remember?"
                     rows={3}
                     className="bg-muted/20 border-border/50 focus:border-primary/40 resize-none"
                     data-testid="textarea-memory"

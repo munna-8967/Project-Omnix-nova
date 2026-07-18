@@ -84,7 +84,7 @@ export default function SettingsScreen() {
       await updateSettings({
         data: {
           assistantName: form.assistantName || "Omni",
-          personality: form.personality as "omni" | "jarvis" | "friday" | "friday_v2" | "custom",
+          personality: form.personality as "omni" | "custom",
           customPersonality: form.customPersonality || null,
           voiceEnabled: form.voiceEnabled,
           voiceGender: form.voiceGender as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",

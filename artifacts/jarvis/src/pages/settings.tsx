@@ -44,7 +44,7 @@ export default function SettingsPage() {
     if (settings) {
       setForm({
         assistantName: settings.assistantName,
-        personality: settings.personality === "jarvis" || settings.personality === "friday" || settings.personality === "friday_v2" ? "omni" : settings.personality,
+        personality: (["jarvis", "friday", "friday_v2"] as string[]).includes(settings.personality as string) ? "omni" : settings.personality,
         customPersonality: settings.customPersonality ?? "",
         voiceEnabled: settings.voiceEnabled,
         voiceGender: settings.voiceGender,
@@ -58,7 +58,7 @@ export default function SettingsPage() {
     await updateSettings({
       data: {
         assistantName: form.assistantName || "Omni",
-        personality: form.personality as "omni" | "jarvis" | "friday" | "friday_v2" | "custom",
+        personality: form.personality as "omni" | "custom",
         customPersonality: form.customPersonality || null,
         voiceEnabled: form.voiceEnabled,
         voiceGender: form.voiceGender as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",

@@ -1,6 +1,6 @@
-# JARVIS AI Assistant
+# OMNIX AI Assistant
 
-A futuristic JARVIS-inspired AI assistant web app with dark HUD UI, AI chat with streaming, voice input/output, memory system, notes/reminders, and Clerk authentication.
+A futuristic AI assistant web and mobile app with dark HUD UI, AI chat with streaming, voice input/output, memory system, notes/reminders, and Clerk authentication.
 
 ## Run & Operate
 
