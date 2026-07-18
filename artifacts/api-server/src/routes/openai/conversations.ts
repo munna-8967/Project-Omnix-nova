@@ -167,11 +167,16 @@ router.post("/conversations/:id/messages", requireAuth(), async (req, res) => {
       }
     }
 
-    await db.insert(messages).values({ conversationId: id, role: "assistant", content: fullResponse });
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    try {
+      await db.insert(messages).values({ conversationId: id, role: "assistant", content: fullResponse });
+    } catch (dbErr) {
+      logger.error({ err: dbErr, conversationId: id }, "Failed to save assistant message");
+    }
   } catch (err) {
+    logger.error({ err }, "AI streaming error");
     res.write(`data: ${JSON.stringify({ error: "AI request failed" })}\n\n`);
   }
+  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();
 });
 

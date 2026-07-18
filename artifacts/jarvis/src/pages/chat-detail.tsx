@@ -75,7 +75,7 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
       const decoder = new TextDecoder();
       let fullContent = "";
 
-      while (true) {
+      outer: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const text = decoder.decode(value);
@@ -83,6 +83,9 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
+            if (data.error) {
+              toast({ title: "AI Error", description: data.error, variant: "destructive" });
+            }
             if (data.content) {
               fullContent += data.content;
               setStreamedMessages((prev) => {
@@ -99,7 +102,9 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
                 if (last?.role === "assistant") updated[updated.length - 1] = { ...last, streaming: false };
                 return updated;
               });
-              queryClient.invalidateQueries({ queryKey: getGetOpenaiConversationQueryKey(id) });
+              await queryClient.refetchQueries({ queryKey: getGetOpenaiConversationQueryKey(id) });
+              setStreamedMessages([]);
+              break outer;
             }
           } catch {}
         }
@@ -109,7 +114,11 @@ export default function ChatDetailPage({ id }: ChatDetailPageProps) {
       setStreamedMessages((prev) => prev.slice(0, -2));
     } finally {
       setIsSending(false);
-      setStreamedMessages([]);
+      // If streaming never completed (network/server error), remove any dangling streaming messages
+      setStreamedMessages((prev) => {
+        if (prev.some((m) => m.streaming)) return prev.slice(0, -2);
+        return prev;
+      });
     }
   }
 
