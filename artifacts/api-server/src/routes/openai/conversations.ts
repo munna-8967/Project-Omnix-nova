@@ -13,7 +13,7 @@ import {
   SendOpenaiVoiceMessageParams,
   SendOpenaiVoiceMessageBody,
 } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openrouter, CHAT_MODEL } from "../../lib/openrouter";
 import { voiceChatStream, ensureCompatibleFormat } from "@workspace/integrations-openai-ai-server/audio";
 import { logger } from "../../lib/logger";
 
@@ -152,9 +152,9 @@ router.post("/conversations/:id/messages", requireAuth(), async (req, res) => {
 
   let fullResponse = "";
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
-      max_completion_tokens: 4096,
+    const stream = await openrouter.chat.completions.create({
+      model: CHAT_MODEL,
+      max_tokens: 4096,
       messages: chatMessages,
       stream: true,
     });
