@@ -17,4 +17,4 @@ export const openrouter = new OpenAI({
   },
 });
 
-export const CHAT_MODEL = "openai/gpt-4o-mini";
+export const CHAT_MODEL = "openrouter/free";
