@@ -17,4 +17,7 @@ export const openrouter = new OpenAI({
   },
 });
 
-export const CHAT_MODEL = "openrouter/free";
+// openrouter/free routes randomly to content-safety classifiers and code models.
+// tencent/hy3:free is a reliable free general-purpose chat model on OpenRouter:
+// clean prose, no markdown artifacts, correct language mirroring, low latency.
+export const CHAT_MODEL = "tencent/hy3:free";
